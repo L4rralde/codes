@@ -9,6 +9,30 @@ struct Code{
     char *str;
 };
 
+struct Code *new_code(){
+    struct Code *new_c = (struct Code *) malloc(sizeof(struct Code));
+    new_c->len = 0;
+    new_c->num = 0;
+    return new_c;
+}
+
+struct Code *copy_code(struct Code *code){
+    struct Code *new_c = new_code();
+    new_c->len = code->len;
+    new_c->num = code->num;
+    if(code->str != NULL){
+        new_c->str = (char *) malloc(sizeof(code->len + 1) * sizeof(char));
+        strcpy(new_c->str, code->str);
+    }
+    return new_c;
+}
+
+void free_code(struct Code *code){
+    if(code->str != NULL)
+        free(code->str);
+    free(code);
+}
+
 char *code_to_str(struct Code *code){
     int len = code->len;
 
@@ -27,7 +51,7 @@ struct Code *code_from_str(char *str){
     int len = strlen(str);
     if(len == 0)
         return NULL;
-    struct Code *code = (struct Code *) malloc(sizeof(struct Code));
+    struct Code *code = new_code();
     code->len = len;
     code->num = 0;
     for(int i=0; i<len; ++i)
@@ -52,6 +76,7 @@ struct QElement{
     int freq;
     unsigned char c;
     struct Code *code;
+    int _valid_code;
     struct QElement *next;
     struct QElement *left;
     struct QElement *right;
@@ -65,17 +90,18 @@ struct HeapQ{
 struct QElement *new_qe(int freq){
     struct QElement *qe = (struct QElement *) malloc(sizeof(struct QElement));
     qe->freq = freq;
-    qe->code = (struct Code*) malloc(sizeof(struct Code));
+    qe->c = 0;
+    qe->code = new_code();
+    qe->_valid_code = 1;
     qe->code->len = 0;
     qe->code->num = 0;
     return qe;
 }
 
 struct QElement *copy_qe(struct QElement *qe){
-    struct QElement *qe_cp = new_qe(0);
+    struct QElement *qe_cp = new_qe(qe->freq);
     qe_cp->c = qe->c;
-    qe_cp->code = qe->code;
-    qe_cp->freq = qe->freq;
+    qe_cp->code = copy_code(qe->code);
     qe_cp->left = qe->left;
     qe_cp->right = qe->right;
     qe_cp->next = qe->next;
@@ -85,7 +111,10 @@ struct QElement *copy_qe(struct QElement *qe){
 
 
 void free_qe(struct QElement *qe){
-    free(qe->code);
+    if(qe->_valid_code){
+        free_code(qe->code);
+        qe->_valid_code = 0;
+    }
     free(qe);
 }
 
@@ -153,10 +182,8 @@ struct QElement **get_file_hist(char *fpath, int *total){
         return NULL;
     struct QElement **hist = (struct QElement **) malloc(256 * sizeof(struct QElement *));
     for(int i=0; i<256; ++i){
-        hist[i] = (struct QElement *) malloc(sizeof(struct QElement));
+        hist[i] = new_qe(0);
         hist[i]->c = (char) i;
-        hist[i]->code = (struct Code *) malloc(sizeof(struct Code));
-        hist[i]->freq = 0;
     }
     
     int c, cnt;
@@ -190,7 +217,7 @@ struct QElement *huffman(struct QElement **hist){
     struct HeapQ *q = new_q();
     for(int i=0; i<256; ++i)
         if(hist[i]->freq > 0)
-            push(q, copy_qe(hist[i]));
+            push(q, hist[i]);
     struct QElement *new_node;
     while(q->len > 1){
         new_node = new_qe(0);
@@ -205,16 +232,6 @@ struct QElement *huffman(struct QElement **hist){
     set_codes(new_node, root_code, code_len);
     free(q);
     return new_node;
-}
-
-char *char_append(char *str, char c){
-    int len = strlen(str);
-    char *str2 = (char *) malloc((len + 2) * sizeof(char));
-    for(int i=0; i<len; ++i)
-        str2[i] = str[i];
-    str2[len] = c;
-    str2[len + 1] = '\0';
-    return str2;
 }
 
 int save_code(struct QElement **hist, char *fname){

@@ -16,6 +16,7 @@ struct QElement{
     int freq;
     unsigned char c;
     struct Code *code;
+    int _valid_code;
     struct QElement *next;
     struct QElement *left;
     struct QElement *right;
@@ -39,7 +40,6 @@ struct QElement *pop(struct HeapQ *);
 struct QElement **get_file_hist(char *, int *);
 int compare_by_freq(const void *, const void *);
 struct QElement *huffman(struct QElement **);
-char *char_append(char *, char);
 void set_codes(struct QElement *, int, int);
 int save_code(struct QElement **, char *);
 

@@ -21,10 +21,11 @@ int main(int argc, char **argv){
             free(aux_str);
         }
     }
+
     save_code(hist, argv[2]);
+    free_tree(tree);
     for(int i=0; i<256; ++i)
         free_qe(hist[i]);
     free(hist);
-    free_tree(tree);
     return 0;
 }
