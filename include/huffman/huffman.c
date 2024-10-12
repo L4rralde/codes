@@ -33,6 +33,13 @@ void free_code(struct Code *code){
     free(code);
 }
 
+void free_codes(struct Code **codes){
+    for(int i=0; i<256; ++i)
+        if(codes[i] != NULL)
+            free_code(codes[i]);
+    free(codes);
+}
+
 char *code_to_str(struct Code *code){
     int len = code->len;
 

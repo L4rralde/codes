@@ -11,6 +11,7 @@ struct Code{
 char *code_to_str(struct Code *);
 struct Code *code_from_str(char *);
 struct Code **codes_from_file(char *);
+void free_codes(struct Code **);
 
 struct QElement{
     int freq;

@@ -7,5 +7,6 @@ int main(int argc, char **argv){
         return 0;
     struct Code **code_dict = codes_from_file(argv[3]);
     zip_file(argv[1], argv[2], code_dict);
+    free_codes(code_dict);
     return 0;
 }
