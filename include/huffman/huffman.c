@@ -1,14 +1,23 @@
+/*
+    Autor: Emmanuel Alejandro Larralde Ortiz | emmanuel.larralde@cimat.mx
+    Descripción:
+        Código fuente de una librería para hacer compresión y decompresión
+        a partir del algoritmo de Huffman.
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "../files/files.h"
 
+//Structura que almacena la codificacion de un caracter.
 struct Code{
     int len;
     unsigned int num;
     char *str;
 };
 
+//Crea una nueva instancia del estruct Code
 struct Code *new_code(){
     struct Code *new_c = (struct Code *) malloc(sizeof(struct Code));
     new_c->len = 0;
@@ -16,23 +25,14 @@ struct Code *new_code(){
     return new_c;
 }
 
-struct Code *copy_code(struct Code *code){
-    struct Code *new_c = new_code();
-    new_c->len = code->len;
-    new_c->num = code->num;
-    if(code->str != NULL){
-        new_c->str = (char *) malloc((code->len + 1) * sizeof(char));
-        strcpy(new_c->str, code->str);
-    }
-    return new_c;
-}
-
+//Libera la memoria utilizada por una instancia de struct.
 void free_code(struct Code *code){
     if(code->str != NULL)
         free(code->str);
     free(code);
 }
 
+//Librera una lista de Codes
 void free_codes(struct Code **codes){
     for(int i=0; i<256; ++i)
         if(codes[i] != NULL)
@@ -40,6 +40,7 @@ void free_codes(struct Code **codes){
     free(codes);
 }
 
+//Convierte un codigo numerico en un string.
 char *code_to_str(struct Code *code){
     int len = code->len;
 
@@ -53,6 +54,7 @@ char *code_to_str(struct Code *code){
     return str;
 }
 
+//Crea una instancia de Code a partir de una cadena de caracteres
 struct Code *code_from_str(char *str){
     int len = strlen(str);
     if(len == 0)
@@ -67,6 +69,7 @@ struct Code *code_from_str(char *str){
     return code;
 }
 
+//Carga los codigos almacenados en un archivo
 struct Code **codes_from_file(char *fpath){
     int n = 0;
     char **str_codes = read_lines(fpath, &n);
@@ -78,6 +81,7 @@ struct Code **codes_from_file(char *fpath){
     return code_dict;
 }
 
+//estructura para construir un árbol de Huffman.
 struct QElement{
     int freq;
     unsigned char c;
@@ -89,11 +93,13 @@ struct QElement{
     struct QElement *right;
 };
 
+//Estructura de una Cola de prioridad.
 struct HeapQ{
     int len;
     struct QElement *head;
 };
 
+//Crea una instancia de QElement
 struct QElement *new_qe(int freq){
     struct QElement *qe = (struct QElement *) malloc(sizeof(struct QElement));
     qe->freq = freq;
@@ -106,18 +112,7 @@ struct QElement *new_qe(int freq){
     return qe;
 }
 
-struct QElement *copy_qe(struct QElement *qe){
-    struct QElement *qe_cp = new_qe(qe->freq);
-    qe_cp->c = qe->c;
-    qe_cp->code = copy_code(qe->code);
-    qe_cp->left = qe->left;
-    qe_cp->right = qe->right;
-    qe_cp->next = qe->next;
-
-    return qe_cp;
-}
-
-
+//Libera la memoria utilizada por una instancia QElement
 void free_qe(struct QElement *qe){
     if(qe->_valid_code){
         free_code(qe->code);
@@ -126,6 +121,7 @@ void free_qe(struct QElement *qe){
     free(qe);
 }
 
+//Libera la memoria alojada durante la construcción del árbol
 void free_tree(struct QElement *root){
     if(root == NULL)
         return;
@@ -135,23 +131,14 @@ void free_tree(struct QElement *root){
         free_qe(root);
 }
 
+//Crea una instancia de HeapQ
 struct HeapQ *new_q(){
     struct HeapQ *q = (struct HeapQ *) malloc(sizeof(struct HeapQ));
     q->len = 0;
     return q;
 }
 
-void print_q(struct HeapQ* q){
-    struct QElement *ptr;
-    ptr = q->head;
-    //printf("len=%d: ", q->len);
-    for(int i=0; i<q->len; ++i){
-        //printf("%c:%d ", ptr->c, ptr->freq);
-        ptr = ptr->next;
-    }
-    //printf("\n");
-}
-
+//Agrega un elemento a una cola de prioridad HeapQ
 int push(struct HeapQ *q, struct QElement *qe){
     int freq = qe->freq;
     if(q->len == 0){
@@ -178,6 +165,7 @@ int push(struct HeapQ *q, struct QElement *qe){
     return i;
 }
 
+//Toma el elemento de mayor prioridad de una cola HeapQ
 struct QElement *pop(struct HeapQ *q){
     struct QElement *aux = q->head;
     q->head = q->head->next;
@@ -185,6 +173,7 @@ struct QElement *pop(struct HeapQ *q){
     return aux;
 }
 
+//Obtiene el histograma de un archivo de texto.
 struct QElement **get_file_hist(char *fpath, int *total){
     FILE *file = fopen(fpath, "r");
     if(file == NULL)
@@ -205,23 +194,18 @@ struct QElement **get_file_hist(char *fpath, int *total){
     return hist;
 }
 
-int compare_by_freq(const void *arg1, const void *arg2){
-    struct QElement *qe1, *qe2;
-    qe1 = * (struct QElement **) arg1;
-    qe2 = * (struct QElement **) arg2;
-
-    return qe1->freq - qe2->freq;
-}
-
+//Asigna los codigos a los elementos del arbol de Huffman.
 void set_codes(struct QElement *tree, int parent_code, int code_len){
     if(tree == NULL)
         return;
     tree->code->num = parent_code;
     tree->code->len = code_len;
+    tree->code->str = code_to_str(tree->code);
     set_codes(tree->left, (parent_code << 1) + 1, code_len + 1);
     set_codes(tree->right, parent_code << 1, code_len + 1);
 }
 
+//Obtiene la codificación de huffman de los caracteres a partir de un histograma.
 struct QElement *huffman(struct QElement **hist){
     struct HeapQ *q = new_q();
     for(int i=0; i<256; ++i){
@@ -244,6 +228,7 @@ struct QElement *huffman(struct QElement **hist){
     return new_node;
 }
 
+//Guarda los codigos de huffman en un archivo de texto,
 int save_code(struct QElement **hist, char *fname){
     FILE *file = fopen(fname, "w");
     char *aux_str;
@@ -262,80 +247,32 @@ int save_code(struct QElement **hist, char *fname){
     return 0;
 }
 
-int generate_code(char *fpath, char *code_path){
+//Genera los codigos de Huffman del contenido de un archivo de texto.
+struct QElement **generate_code(char *fpath, char *code_path){
     int total;
     struct QElement **hist = get_file_hist(fpath, &total);
     if(hist == NULL){
         printf("Couldn't calculate histogram\n");
-        return -1;
+        return NULL;
     }
     struct QElement *tree = huffman(hist);
     if(tree == NULL){
         printf("Couldn't build tree\n");
-        return -1;
+        return NULL;
     }
     save_code(hist, code_path);
     free_tree(tree);
-    for(int i=0; i<256; ++i)
-        free_qe(hist[i]);
-    free(hist);
-    return 0;
+    return hist;
 }
 
-char *zip(char *input, int in_len, struct Code **code_dict, int *o_len){
-    int out_len, out_cnt;
-    out_cnt = 0;
-    out_len = 1024;
-    char *output = (char *) malloc(out_len * sizeof(char));
-    char *aux_ptr;
+//Estructura de datos con las estadísticas de la compresion.
+struct Stats{
+    int old_size;
+    int new_size;
+};
 
-    char *cs = input;
-    int c;
-    unsigned long int buffer = 0;
-    int len_buffer = 0;
-    int shifts;
-    struct Code *curr_code;
-    unsigned char byte;
-    for(int i = 0; i<in_len; ++i){
-        c = cs[i];
-        if(code_dict[c] ==  NULL){
-            printf("ERROR: Not recognized character\n");
-            return NULL;
-        }
-        curr_code = code_dict[c];
-        shifts = curr_code->len;
-        buffer = buffer << shifts;
-        buffer |= curr_code->num;
-        len_buffer += shifts;
-        while(len_buffer >= 8){
-            byte = (buffer >> (len_buffer - 8)) & 255;
-            buffer ^= (byte << (len_buffer - 8));
-            len_buffer -= 8;
-            output[out_cnt++] = byte;
-            if(out_cnt == out_len - 4){
-                out_len += 1024;
-                aux_ptr = (char *) realloc(output, out_len * sizeof(char));
-                if(aux_ptr == NULL)
-                    return NULL;
-                output = aux_ptr;
-            }
-        }
-    }
-    if(len_buffer > 0){
-        byte = buffer & 255;
-        byte = byte << (8 - len_buffer);
-        len_buffer = 0;
-        output[out_cnt++] = byte;
-        *o_len = out_cnt;
-        output[out_cnt++] = '\0';
-    }
-    aux_ptr = realloc(output, out_cnt * sizeof(char));
-    if(aux_ptr != NULL)
-        output = aux_ptr;
-    return output;
-}
-
-int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
+//Comprime un archivo a partir de un archivo con codigos de huffman.
+struct Stats *zip_file(char *src_file, char *dst_file, struct Code **code_dict){
     int cs_n;
     char *cs = read_file(src_file, &cs_n);
     cs_n--;
@@ -346,13 +283,14 @@ int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
     int shifts;
     struct Code *curr_code;
     unsigned char byte;
+    int cnt = 0;
     for(int i=0; i<cs_n; ++i){
         c = cs[i];
         if(code_dict[c] ==  NULL){
             printf("ERROR: Not recognized character\n");
             fclose(dst);
             free(cs);
-            return -1;
+            return NULL;
         }
         curr_code = code_dict[c];
         //printf("Code. %c: %s\n", c, curr_code->str);
@@ -367,6 +305,7 @@ int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
             buffer ^= (byte << (len_buffer - 8));
             len_buffer -= 8;
             fprintf(dst, "%c", byte);
+            cnt++;
             //printf("Wrote byte: %x\n", byte);
             //printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
         }
@@ -377,12 +316,17 @@ int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
         len_buffer = 0;
         //printf("Wrote byte: %x\n", byte);
         fprintf(dst, "%c", byte);
+        cnt++;
     }
     free(cs);
     fclose(dst);
-    return 0;
+    struct Stats *stats = (struct Stats *) malloc(sizeof(struct Stats));
+    stats->old_size = cs_n;
+    stats->new_size = cnt;
+    return stats;
 }
 
+//Encuentra si los bits mas significativos de un buffer corresponden a un caracter codificado.
 int match_code(struct Code **code_dict, unsigned long int buffer, int len){
     //printf("Buffer: %lx\n", buffer);
     unsigned long int xor_mask;
@@ -401,67 +345,7 @@ int match_code(struct Code **code_dict, unsigned long int buffer, int len){
     return -1;
 }
 
-char *unzip(char *input, int in_len, struct Code **code_dict, int *ou_len){
-    int dst_len = 1024;
-    int dst_cnt = 0;
-    char *aux_ptr, *dst;
-    dst = (char *) malloc(sizeof(char) * dst_len);
-
-    unsigned long int buffer = 0;
-    int buffer_len = 0;
-    unsigned char c;
-    int match;
-    struct Code *match_c;
-    for(int i=0; i<in_len; ++i){
-        c = input[i];
-        //printf("read_byte: %x\n", c);
-        buffer = buffer << 8;
-        buffer_len += 8;
-        buffer |= c;
-        //printf("%lx. len=%d\n", buffer, buffer_len);
-        while(1){
-            match = match_code(code_dict, buffer, buffer_len);
-            if(match == -1){
-                break;
-            }
-            match_c = code_dict[match];
-            //printf("%c: %s. Buffer_len=%d\n", (char) match, match_c->str, buffer_len);
-            buffer ^= match_c->num << (buffer_len - code_dict[match]->len);
-            //printf("%lx\n", buffer);
-            buffer_len -= match_c->len;
-            dst[dst_cnt++] = (unsigned char) match;
-            if(dst_cnt == dst_len - 4){
-                dst_len += 1024;
-                aux_ptr = (char *) realloc(dst, dst_len * sizeof(char));
-                if(aux_ptr == NULL)
-                    return NULL;
-                dst = aux_ptr;
-            }
-        }
-    }
-    while(buffer_len >= 0){
-        match = match_code(code_dict, buffer, buffer_len);
-        if(match == -1)
-            break;
-        buffer ^= code_dict[match]->num << (buffer_len - code_dict[match]->len);
-        buffer_len -= code_dict[match]->len;
-        dst[dst_cnt++] = (unsigned char) match;
-        if(dst_cnt == dst_len - 4){
-            dst_len += 1024;
-            aux_ptr = (char *) realloc(dst, dst_len * sizeof(char));
-            if(aux_ptr == NULL)
-                return NULL;
-            dst = aux_ptr;
-        }
-    }
-    *ou_len = dst_cnt;
-    dst[dst_cnt++] = '\0';
-    aux_ptr = (char *) realloc(dst, dst_cnt * sizeof(char));
-    if(aux_ptr != NULL)
-        dst = aux_ptr;
-    return dst;
-}
-
+//Descomprime un archivo a partir de un archivo con codigos de huffman.
 int unzip_file(char *src_file, char *dst_file, struct Code **code_dict){
     FILE *src = fopen(src_file, "r");
     if (src == NULL)
