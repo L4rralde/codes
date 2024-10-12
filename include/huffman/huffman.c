@@ -21,7 +21,7 @@ struct Code *copy_code(struct Code *code){
     new_c->len = code->len;
     new_c->num = code->num;
     if(code->str != NULL){
-        new_c->str = (char *) malloc(sizeof(code->len + 1) * sizeof(char));
+        new_c->str = (char *) malloc((code->len + 1) * sizeof(char));
         strcpy(new_c->str, code->str);
     }
     return new_c;
@@ -46,7 +46,6 @@ char *code_to_str(struct Code *code){
     char *str = (char *) malloc((len + 1) * sizeof(char));
     str[len] = '\0';
     int copy = code->num;
-    printf("--%d\n", copy);
     for(int i=len-1; i>=0; --i){
         str[i] = (copy & 1) + 48;
         copy = copy >> 1;
@@ -63,7 +62,7 @@ struct Code *code_from_str(char *str){
     code->num = 0;
     for(int i=0; i<len; ++i)
         code->num = (code->num << 1) + (str[i] == '1');
-    code->str = (char *) malloc(sizeof(len + 1) * sizeof(char));
+    code->str = (char *) malloc((len + 1) * sizeof(char));
     strcpy(code->str, str);
     return code;
 }
@@ -84,6 +83,7 @@ struct QElement{
     unsigned char c;
     struct Code *code;
     int _valid_code;
+    int _is_from_hist;
     struct QElement *next;
     struct QElement *left;
     struct QElement *right;
@@ -100,6 +100,7 @@ struct QElement *new_qe(int freq){
     qe->c = 0;
     qe->code = new_code();
     qe->_valid_code = 1;
+    qe->_is_from_hist = 0;
     qe->code->len = 0;
     qe->code->num = 0;
     return qe;
@@ -130,7 +131,8 @@ void free_tree(struct QElement *root){
         return;
     free_tree(root->left);
     free_tree(root->right);
-    free_qe(root);
+    if(root->_is_from_hist == 0)
+        free_qe(root);
 }
 
 struct HeapQ *new_q(){
@@ -142,12 +144,12 @@ struct HeapQ *new_q(){
 void print_q(struct HeapQ* q){
     struct QElement *ptr;
     ptr = q->head;
-    printf("len=%d: ", q->len);
+    //printf("len=%d: ", q->len);
     for(int i=0; i<q->len; ++i){
-        printf("%c:%d ", ptr->c, ptr->freq);
+        //printf("%c:%d ", ptr->c, ptr->freq);
         ptr = ptr->next;
     }
-    printf("\n");
+    //printf("\n");
 }
 
 int push(struct HeapQ *q, struct QElement *qe){
@@ -190,6 +192,7 @@ struct QElement **get_file_hist(char *fpath, int *total){
     struct QElement **hist = (struct QElement **) malloc(256 * sizeof(struct QElement *));
     for(int i=0; i<256; ++i){
         hist[i] = new_qe(0);
+        hist[i]->_is_from_hist = 1;
         hist[i]->c = (char) i;
     }
     
@@ -215,16 +218,16 @@ void set_codes(struct QElement *tree, int parent_code, int code_len){
         return;
     tree->code->num = parent_code;
     tree->code->len = code_len;
-    printf("%d\n", parent_code);
     set_codes(tree->left, (parent_code << 1) + 1, code_len + 1);
     set_codes(tree->right, parent_code << 1, code_len + 1);
 }
 
 struct QElement *huffman(struct QElement **hist){
     struct HeapQ *q = new_q();
-    for(int i=0; i<256; ++i)
+    for(int i=0; i<256; ++i){
         if(hist[i]->freq > 0)
             push(q, hist[i]);
+    }
     struct QElement *new_node;
     while(q->len > 1){
         new_node = new_qe(0);
@@ -259,6 +262,25 @@ int save_code(struct QElement **hist, char *fname){
     return 0;
 }
 
+int generate_code(char *fpath, char *code_path){
+    int total;
+    struct QElement **hist = get_file_hist(fpath, &total);
+    if(hist == NULL){
+        printf("Couldn't calculate histogram\n");
+        return -1;
+    }
+    struct QElement *tree = huffman(hist);
+    if(tree == NULL){
+        printf("Couldn't build tree\n");
+        return -1;
+    }
+    save_code(hist, code_path);
+    free_tree(tree);
+    for(int i=0; i<256; ++i)
+        free_qe(hist[i]);
+    free(hist);
+    return 0;
+}
 
 char *zip(char *input, int in_len, struct Code **code_dict, int *o_len){
     int out_len, out_cnt;
@@ -281,19 +303,15 @@ char *zip(char *input, int in_len, struct Code **code_dict, int *o_len){
             return NULL;
         }
         curr_code = code_dict[c];
-        printf("Code. %c: %s\n", c, curr_code->str);
         shifts = curr_code->len;
         buffer = buffer << shifts;
         buffer |= curr_code->num;
         len_buffer += shifts;
-        printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
         while(len_buffer >= 8){
             byte = (buffer >> (len_buffer - 8)) & 255;
             buffer ^= (byte << (len_buffer - 8));
             len_buffer -= 8;
             output[out_cnt++] = byte;
-            printf("Wrote byte: %x\n", byte);
-            printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
             if(out_cnt == out_len - 4){
                 out_len += 1024;
                 aux_ptr = (char *) realloc(output, out_len * sizeof(char));
@@ -307,7 +325,6 @@ char *zip(char *input, int in_len, struct Code **code_dict, int *o_len){
         byte = buffer & 255;
         byte = byte << (8 - len_buffer);
         len_buffer = 0;
-        printf("Wrote byte: %x\n", byte);
         output[out_cnt++] = byte;
         *o_len = out_cnt;
         output[out_cnt++] = '\0';
@@ -338,27 +355,27 @@ int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
             return -1;
         }
         curr_code = code_dict[c];
-        printf("Code. %c: %s\n", c, curr_code->str);
+        //printf("Code. %c: %s\n", c, curr_code->str);
         shifts = curr_code->len;
         buffer = buffer << shifts;
         buffer |= curr_code->num;
         len_buffer += shifts;
-        printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
+        //printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
         while(len_buffer >= 8){
             byte = buffer & (255 << (len_buffer - 8));
             byte = buffer >> (len_buffer - 8);
             buffer ^= (byte << (len_buffer - 8));
             len_buffer -= 8;
             fprintf(dst, "%c", byte);
-            printf("Wrote byte: %x\n", byte);
-            printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
+            //printf("Wrote byte: %x\n", byte);
+            //printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
         }
     }
     if(len_buffer > 0){
         byte = buffer & 255;
         byte = byte << (8 - len_buffer);
         len_buffer = 0;
-        printf("Wrote byte: %x\n", byte);
+        //printf("Wrote byte: %x\n", byte);
         fprintf(dst, "%c", byte);
     }
     free(cs);
@@ -455,21 +472,21 @@ int unzip_file(char *src_file, char *dst_file, struct Code **code_dict){
     int c, match;
     struct Code *match_c;
     while ((c = fgetc(src)) != EOF){
-        printf("read_byte: %x\n", c);
+        //printf("read_byte: %x\n", c);
         buffer = buffer << 8;
         buffer_len += 8;
         buffer |= c;
-        printf("%lx. len=%d\n", buffer, buffer_len);
+        //printf("%lx. len=%d\n", buffer, buffer_len);
         while(1){
             match = match_code(code_dict, buffer, buffer_len);
             if(match == -1){
                 break;
             }
             match_c = code_dict[match];
-            printf("%c: %s. Buffer_len=%d\n", (char) match, match_c->str, buffer_len);
+            //printf("%c: %s. Buffer_len=%d\n", (char) match, match_c->str, buffer_len);
             fprintf(dst, "%c", (char) match);
             buffer ^= match_c->num << (buffer_len - code_dict[match]->len);
-            printf("%lx\n", buffer);
+            //printf("%lx\n", buffer);
             buffer_len -= match_c->len;
         }
     }

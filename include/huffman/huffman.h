@@ -44,6 +44,7 @@ struct QElement *huffman(struct QElement **);
 void set_codes(struct QElement *, int, int);
 int save_code(struct QElement **, char *);
 
+int generate_code(char *, char *);
 char *zip(char *, int, struct Code **, int *);
 int zip_file(char *, char *, struct Code **);
 
