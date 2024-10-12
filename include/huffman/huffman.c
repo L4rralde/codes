@@ -259,6 +259,65 @@ int save_code(struct QElement **hist, char *fname){
     return 0;
 }
 
+
+char *zip(char *input, int in_len, struct Code **code_dict, int *o_len){
+    int out_len, out_cnt;
+    out_cnt = 0;
+    out_len = 1024;
+    char *output = (char *) malloc(out_len * sizeof(char));
+    char *aux_ptr;
+
+    char *cs = input;
+    int c;
+    unsigned long int buffer = 0;
+    int len_buffer = 0;
+    int shifts;
+    struct Code *curr_code;
+    unsigned char byte;
+    for(int i = 0; i<in_len; ++i){
+        c = cs[i];
+        if(code_dict[c] ==  NULL){
+            printf("ERROR: Not recognized character\n");
+            return NULL;
+        }
+        curr_code = code_dict[c];
+        printf("Code. %c: %s\n", c, curr_code->str);
+        shifts = curr_code->len;
+        buffer = buffer << shifts;
+        buffer |= curr_code->num;
+        len_buffer += shifts;
+        printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
+        while(len_buffer >= 8){
+            byte = (buffer >> (len_buffer - 8)) & 255;
+            buffer ^= (byte << (len_buffer - 8));
+            len_buffer -= 8;
+            output[out_cnt++] = byte;
+            printf("Wrote byte: %x\n", byte);
+            printf("buffer: len=%d, cont=%lx\n", len_buffer, buffer);
+            if(out_cnt == out_len - 4){
+                out_len += 1024;
+                aux_ptr = (char *) realloc(output, out_len * sizeof(char));
+                if(aux_ptr == NULL)
+                    return NULL;
+                output = aux_ptr;
+            }
+        }
+    }
+    if(len_buffer > 0){
+        byte = buffer & 255;
+        byte = byte << (8 - len_buffer);
+        len_buffer = 0;
+        printf("Wrote byte: %x\n", byte);
+        output[out_cnt++] = byte;
+        *o_len = out_cnt;
+        output[out_cnt++] = '\0';
+    }
+    aux_ptr = realloc(output, out_cnt * sizeof(char));
+    if(aux_ptr != NULL)
+        output = aux_ptr;
+    return output;
+}
+
 int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
     int cs_n;
     char *cs = read_file(src_file, &cs_n);
@@ -308,7 +367,7 @@ int zip_file(char *src_file, char *dst_file, struct Code **code_dict){
 }
 
 int match_code(struct Code **code_dict, unsigned long int buffer, int len){
-    printf("Buffer: %lx\n", buffer);
+    //printf("Buffer: %lx\n", buffer);
     unsigned long int xor_mask;
     struct Code *curr_code;
     for(int i=0; i<256; ++i){
@@ -318,11 +377,72 @@ int match_code(struct Code **code_dict, unsigned long int buffer, int len){
         if(len < curr_code->len)
             continue;
         xor_mask = (unsigned long int) curr_code->num << (len - curr_code->len);
-        printf("c=%c: xor_mask: %lx. Code:%s, num:%u\n", i, xor_mask, curr_code->str, curr_code->num);
+        //printf("c=%c: xor_mask: %lx. Code:%s, num:%u\n", i, xor_mask, curr_code->str, curr_code->num);
         if(((buffer ^ xor_mask) >> (len - curr_code->len)) == 0)
             return i;
     }
     return -1;
+}
+
+char *unzip(char *input, int in_len, struct Code **code_dict, int *ou_len){
+    int dst_len = 1024;
+    int dst_cnt = 0;
+    char *aux_ptr, *dst;
+    dst = (char *) malloc(sizeof(char) * dst_len);
+
+    unsigned long int buffer = 0;
+    int buffer_len = 0;
+    unsigned char c;
+    int match;
+    struct Code *match_c;
+    for(int i=0; i<in_len; ++i){
+        c = input[i];
+        //printf("read_byte: %x\n", c);
+        buffer = buffer << 8;
+        buffer_len += 8;
+        buffer |= c;
+        //printf("%lx. len=%d\n", buffer, buffer_len);
+        while(1){
+            match = match_code(code_dict, buffer, buffer_len);
+            if(match == -1){
+                break;
+            }
+            match_c = code_dict[match];
+            //printf("%c: %s. Buffer_len=%d\n", (char) match, match_c->str, buffer_len);
+            buffer ^= match_c->num << (buffer_len - code_dict[match]->len);
+            //printf("%lx\n", buffer);
+            buffer_len -= match_c->len;
+            dst[dst_cnt++] = (unsigned char) match;
+            if(dst_cnt == dst_len - 4){
+                dst_len += 1024;
+                aux_ptr = (char *) realloc(dst, dst_len * sizeof(char));
+                if(aux_ptr == NULL)
+                    return NULL;
+                dst = aux_ptr;
+            }
+        }
+    }
+    while(buffer_len >= 0){
+        match = match_code(code_dict, buffer, buffer_len);
+        if(match == -1)
+            break;
+        buffer ^= code_dict[match]->num << (buffer_len - code_dict[match]->len);
+        buffer_len -= code_dict[match]->len;
+        dst[dst_cnt++] = (unsigned char) match;
+        if(dst_cnt == dst_len - 4){
+            dst_len += 1024;
+            aux_ptr = (char *) realloc(dst, dst_len * sizeof(char));
+            if(aux_ptr == NULL)
+                return NULL;
+            dst = aux_ptr;
+        }
+    }
+    *ou_len = dst_cnt;
+    dst[dst_cnt++] = '\0';
+    aux_ptr = (char *) realloc(dst, dst_cnt * sizeof(char));
+    if(aux_ptr != NULL)
+        dst = aux_ptr;
+    return dst;
 }
 
 int unzip_file(char *src_file, char *dst_file, struct Code **code_dict){
