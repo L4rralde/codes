@@ -2,4 +2,7 @@
 .ipynb_checkpoints/
 .vscode
 *.txt*
-*.pgm
+*.pgm*
+output
+*.bin*
+.DS_Store
