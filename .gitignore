@@ -6,3 +6,5 @@
 output
 *.bin*
 .DS_Store
+*.zip
+*.pdf
