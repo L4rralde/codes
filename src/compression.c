@@ -28,7 +28,7 @@ int main(int argc, char **argv){
         int rows, cols;
         unsigned char **img = pgmRead(argv[1], &rows, &cols);
         n_pixels = rows * cols;
-        printf("Numero de pixeles: %d\n", n_pixels);
+        printf("Number of pixels: %d\n", n_pixels);
         free(img[0]);
         free(img);
     }
@@ -39,7 +39,7 @@ int main(int argc, char **argv){
         printf("Couldn't generate Huffman's code\n");
         return 0;
     }
-    printf("Archivo con codificacion guardado en tmp/code.txt\n");
+    printf("Huffman codes file: tmp/code.txt\n");
 
     //Calcula el valor esperado de la longitud de los codigos de Huffman.
     float expected = 0;
@@ -54,17 +54,17 @@ int main(int argc, char **argv){
 
     //Comprime el archivo
     struct Stats *stats = zip_file(argv[1], "zipped.bin", code_dict);
-    printf("Archivo comprimido: zipped.bin\n");
+    printf("Compressed file: zipped.bin\n");
     expected /= stats->old_size;
     
     //Descomprime el archivo
     unzip_file("zipped.bin", argv[2], code_dict);
 
     //Imprime las estadísticas.
-    printf("Tamanio original: %d bytes\n", stats->old_size);
-    printf("Tamanio nuevo: %d bytes\n", stats->new_size);
-    printf("Valor esperado (expectancy) de la longitud de los codigos: %f bits\n", expected);
-    printf("Razón de compresión: %f\n", (float) stats->old_size/stats->new_size);
+    printf("Original size: %d bytes\n", stats->old_size);
+    printf("New size: %d bytes\n", stats->new_size);
+    printf("Average char length: %f bits\n", expected);
+    printf("Compression ratio: %f\n", (float) stats->old_size/stats->new_size);
     if(is_img)
         printf("bpp: %f\n", 8.0 * stats->new_size/n_pixels);
 
