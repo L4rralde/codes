@@ -2,6 +2,7 @@
 
 ## Ejercicio 1
 
+Mi solución sirve para comprimir cualquier tipo de archivo ascii.
 ### Compilacion:
 
 ```sh
